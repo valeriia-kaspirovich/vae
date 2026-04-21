@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VAE — Valeriia Kaspirovich</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1a1714;
+    --ink2: #4a4540;
+    --ink3: #8a8078;
+    --paper: #f5f2ed;
+    --paper2: #ede9e2;
+    --paper3: #e4dfd6;
+    --accent: #c8440a;
+    --accent2: #e8a87c;
+    --done: #2d7a5a;
+    --done-light: #e8f5ee;
+    --line: rgba(26,23,20,0.12);
+    --serif: 'DM Serif Display', Georgia, serif;
+    --sans: 'DM Sans', system-ui, sans-serif;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* LAYOUT */
+  .site { display: flex; min-height: 100vh; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 2.5rem 1.5rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-name {
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    line-height: 1.2;
+    margin-bottom: 4px;
+    color: #fff;
+  }
+  .sidebar-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 2rem;
+    line-height: 1.5;
+  }
+
+  .progress-wrap { margin-bottom: 2.5rem; }
+  .progress-label { font-size: 0.72rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .progress-track {
+    height: 3px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent2);
+    border-radius: 99px;
+    transition: width 0.5s ease;
+    width: 0%;
+  }
+  .progress-count { font-size: 0.75rem; color: rgba(255,255,255,0.3); margin-top: 6px; }
+
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.5);
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); }
+  .nav-item.active { background: rgba(255,255,255,0.1); color: #fff; }
+  .nav-item.done { color: var(--accent2); }
+  .nav-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    flex-shrink: 0;
+  }
+  .nav-item.done .nav-dot { background: var(--accent2); }
+  .nav-item.active .nav-dot { background: #fff; }
+
+  .nav-section-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(255,255,255,0.2);
+    padding: 1rem 12px 4px;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding-top: 2rem;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.2);
+    line-height: 1.6;
+  }
+
+  /* MAIN */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 3rem 4rem 6rem;
+    max-width: 900px;
+  }
+
+  /* SECTIONS */
+  .section { display: none; }
+  .section.visible { display: block; }
+
+  /* PAGE HEADER */
+  .page-header { margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--line); }
+  .page-bloc-tag {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .page-title {
+    font-family: var(--serif);
+    font-size: 2.2rem;
+    line-height: 1.2;
+    color: var(--ink);
+    margin-bottom: 10px;
+  }
+  .page-desc { font-size: 0.9rem; color: var(--ink3); line-height: 1.7; max-width: 600px; }
+
+  /* STATUS BADGE */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 99px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .status-badge.empty { background: var(--paper3); color: var(--ink3); }
+  .status-badge.in-progress { background: #fef3e2; color: #b45309; }
+  .status-badge.done { background: var(--done-light); color: var(--done); }
+
+  /* COMPETENCE LIST */
+  .comp-list { margin-bottom: 2.5rem; }
+  .comp-item {
+    display: flex;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    align-items: flex-start;
+  }
+  .comp-num {
+    font-family: var(--serif);
+    font-size: 0.75rem;
+    color: var(--accent);
+    min-width: 32px;
+    padding-top: 1px;
+  }
+  .comp-text-wrap { flex: 1; }
+  .comp-title { font-size: 0.85rem; font-weight: 500; color: var(--ink); margin-bottom: 3px; }
+  .comp-detail { font-size: 0.8rem; color: var(--ink3); line-height: 1.6; }
+  .comp-check {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line);
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+  .comp-check.checked { background: var(--done); border-color: var(--done); }
+  .comp-check.checked::after { content: ''; width: 5px; height: 3px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(-45deg) translateY(-1px); display: block; }
+
+  /* FIELDS */
+  .field-block { margin-bottom: 2rem; }
+  .field-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink3);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .field-hint { font-size: 0.72rem; color: var(--ink3); font-style: italic; text-transform: none; letter-spacing: 0; margin-left: 4px; }
+
+  textarea {
+    width: 100%;
+    background: var(--paper2);
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: var(--sans);
+    font-size: 0.9rem;
+    color: var(--ink);
+    line-height: 1.7;
+    resize: vertical;
+    min-height: 120px;
+    transition: border-color 0.15s, background 0.15s;
+    outline: none;
+  }
+  textarea:focus { background: #fff; border-color: var(--accent2); }
+  textarea::placeholder { color: var(--ink3); opacity: 0.6; }
+
+  /* MEDIA GRID */
+  .media-section { margin-bottom: 2rem; }
+  .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-top: 10px; }
+  .media-thumb {
+    aspect-ratio: 16/10;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    cursor: pointer;
+    transition: opacity 0.15s;
+    width: 100%;
+    display: block;
+  }
+  .media-thumb:hover { opacity: 0.85; }
+
+  .upload-zone {
+    border: 1.5px dashed var(--paper3);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 10px;
+  }
+  .upload-zone:hover { border-color: var(--accent2); background: rgba(200,68,10,0.03); }
+  .upload-zone-icon { font-size: 1.4rem; margin-bottom: 6px; color: var(--ink3); }
+  .upload-zone-label { font-size: 0.82rem; color: var(--ink3); }
+  .upload-zone-sub { font-size: 0.72rem; color: var(--ink3); opacity: 0.6; margin-top: 3px; }
+  input[type="file"] { display: none; }
+
+  /* VIDEO EMBEDS */
+  .video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .video-embed-wrap { position: relative; padding-bottom: 56.25%; border-radius: 10px; overflow: hidden; background: var(--paper2); }
+  .video-embed-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+
+  .url-row { display: flex; gap: 8px; margin-top: 10px; }
+  .url-input {
+    flex: 1;
+    background: var(--paper2);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: var(--sans);
+    font-size: 0.85rem;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .url-input:focus { border-color: var(--accent2); background: #fff; }
+  .url-btn {
+    padding: 10px 16px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 0.82rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+  }
+  .url-btn:hover { opacity: 0.85; }
+
+  /* PROJECTS TAG */
+  .project-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .project-tag {
+    padding: 4px 12px;
+    background: var(--paper3);
+    border-radius: 99px;
+    font-size: 0.78rem;
+    color: var(--ink2);
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+  }
+  .project-tag:hover { border-color: var(--accent2); }
+  .project-tag.selected { background: var(--accent); color: #fff; }
+
+  /* DIVIDER */
+  .divider { height: 1px; background: var(--line); margin: 2.5rem 0; }
+
+  /* SAVE INDICATOR */
+  .save-indicator {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 8px 16px;
+    background: var(--ink);
+    color: rgba(255,255,255,0.8);
+    border-radius: 99px;
+    font-size: 0.75rem;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+  .save-indicator.visible { opacity: 1; transform: translateY(0); }
+
+  /* HERO - profil page */
+  .hero { padding: 2rem 0 3rem; }
+  .hero-eyebrow {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .hero-name {
+    font-family: var(--serif);
+    font-size: 3.5rem;
+    line-height: 1.05;
+    margin-bottom: 8px;
+  }
+  .hero-name em { font-style: italic; color: var(--ink3); }
+  .hero-certification {
+    font-size: 0.85rem;
+    color: var(--ink3);
+    margin-bottom: 2rem;
+  }
+  .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .hero-tag {
+    padding: 5px 14px;
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    font-size: 0.78rem;
+    color: var(--ink2);
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .main { padding: 2rem 1.5rem 4rem; }
+    .video-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .section.visible { animation: fadeUp 0.3s ease; }
+</style>
+</head>
+<body>
+
+<div class="site">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-name">Valeriia<br>Kaspirovich</div>
+    <div class="sidebar-title">Concepteur technique<br>de l'image animée et VFX<br>RNCP 36578 · Niveau 6</div>
+
+    <div class="progress-wrap">
+      <div class="progress-label">Progression</div>
+      <div class="progress-track"><div class="progress-fill" id="prog"></div></div>
+      <div class="progress-count" id="prog-count">0 / 4 blocs complétés</div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-section-label">Dossier</div>
+      <a class="nav-item active" onclick="show('profil')">
+        <div class="nav-dot"></div>Profil candidat
+      </a>
+
+      <div class="nav-section-label">Compétences</div>
+      <a class="nav-item" id="nav-b1" onclick="show('b1')">
+        <div class="nav-dot"></div>Bloc 1 — Définition projet
+      </a>
+      <a class="nav-item" id="nav-b2" onclick="show('b2')">
+        <div class="nav-dot"></div>Bloc 2 — Pré-production
+      </a>
+      <a class="nav-item" id="nav-b3" onclick="show('b3')">
+        <div class="nav-dot"></div>Bloc 3 — Production assets
+      </a>
+      <a class="nav-item" id="nav-b4" onclick="show('b4')">
+        <div class="nav-dot"></div>Bloc 4 — Post-production
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      VAE accompagnée par Jonathan Lankry<br>
+      Galileo VAE · Bellecour Écoles d'Art
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    <!-- PROFIL -->
+    <div class="section visible" id="s-profil">
+      <div class="hero">
+        <div class="hero-eyebrow">Livret 2 · VAE 2025</div>
+        <h1 class="hero-name">Valeriia<br><em>Kaspirovich</em></h1>
+        <div class="hero-certification">Concepteur technique de l'image animée et des effets spéciaux</div>
+        <div class="hero-tags" id="hero-tags-display">
+          <span class="hero-tag">Storyboard</span>
+          <span class="hero-tag">Layout</span>
+          <span class="hero-tag">Animation 2D/3D</span>
+          <span class="hero-tag">Direction artistique</span>
+          <span class="hero-tag">Réalisation</span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field-block">
+        <div class="field-label">Présentation <span class="field-hint">— qui tu es, ton parcours en quelques lignes</span></div>
+        <textarea id="profil-intro" rows="5" placeholder="Storyboarder et layout artist depuis 2019, j'ai collaboré avec des studios en France, en Russie et au Portugal sur des projets allant des séries 2D pour enfants aux longs-métrages d'animation. Diplômée de l'École des Métiers du Cinéma d'Animation d'Angoulême..."></textarea>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Formation</div>
+        <textarea id="profil-formation" rows="3" placeholder="— École des Métiers du Cinéma d'Animation (Angoulême)&#10;— Cours GOBELINS : Storyboard to Animatic"></textarea>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Projets clés</div>
+        <textarea id="profil-projects" rows="6" placeholder="— Apocalypse Mojito (Amopix) — layout artist, en cours&#10;— Pengarena pour Riot Games (Histeria!) — storyboard&#10;— Чуч-Мяуч (Союзмультфильм) — storyboard&#10;— Take My Muffin (Toonbox)&#10;— Norman N'a Pas de Super-Pouvoir (BIG Company)&#10;— Labyrinth — court-métrage, récompensé au Student World Impact Film Festival"></textarea>
+      </div>
+
+      <div class="media-section">
+        <div class="field-label">Photos / visuels de présentation</div>
+        <div class="media-grid" id="media-profil"></div>
+        <div class="upload-zone" onclick="document.getElementById('fi-profil').click()">
+          <div class="upload-zone-icon">＋</div>
+          <div class="upload-zone-label">Ajouter des images</div>
+          <div class="upload-zone-sub">photo, portrait, captures d'écran de projets</div>
+          <input type="file" id="fi-profil" multiple accept="image/*" onchange="addImages('profil', this)">
+        </div>
+      </div>
+    </div>
+
+    <!-- BLOC 1 -->
+    <div class="section" id="s-b1">
+      <div class="page-header">
+        <div class="page-bloc-tag">Bloc 1</div>
+        <h1 class="page-title">Participer à la définition<br>d'un projet d'animation</h1>
+        <p class="page-desc">Pilotage, veille artistique/technologique, définition du projet avec le DA — moodboards, bible graphique, développement visuel.</p>
+        <div class="status-badge empty" id="badge-b1" onclick="toggleDone('b1')">
+          À compléter
+        </div>
+      </div>
+
+      <div class="comp-list">
+        <div class="comp-item">
+          <div class="comp-num">C1.1</div>
+          <div class="comp-text-wrap">
+            <div class="comp-title">Pilotage du projet</div>
+            <div class="comp-detail">Outils de suivi de production, identification des contraintes et risques, indicateurs qualité, coordination avec le DA et les équipes</div>
+          </div>
+          <div class="comp-check" id="chk-c11" onclick="toggleComp('c11', 'b1')"></div>
+        </div>
+        <div class="comp-item">
+          <div class="comp-num">C1.2</div>
+          <div class="comp-text-wrap">
+            <div class="comp-title">Veille artistique, technologique et concurrentielle</div>
+            <div class="comp-detail">Animation 2D/3D/stop motion — collecte, analyse, exploitation des résultats pour soutenir la définition du projet</div>
+          </div>
+          <div class="comp-check" id="chk-c12" onclick="toggleComp('c12', 'b1')"></div>
+        </div>
+        <div class="comp-item">
+          <div class="comp-num">C1.3</div>
+          <div class="comp-text-wrap">
+            <div class="comp-title">Définition visuelle du projet</div>
+            <div class="comp-detail">Moodboards, développement visuel, bible graphique — en appui au directeur artistique</div>
+          </div>
+          <div class="comp-check" id="chk-c13" onclick="toggleComp('c13', 'b1')"></div>
+        </div>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Projets de référence pour ce bloc</div>
+        <div class="project-tags" id="tags-b1">
+          <span class="project-tag" onclick="toggleTag(this)">Apocalypse Mojito</span>
+          <span class="project-tag" onclick="toggleTag(this)">Pengarena / Riot Games</span>
+          <span class="project-tag" onclick="toggleTag(this)">Чуч-Мяуч</span>
+          <span class="project-tag" onclick="toggleTag(this)">Norman N'a Pas...</span>
+          <span class="project-tag" onclick="toggleTag(this)">Take My Muffin</span>
+          <span class="project-tag" onclick="toggleTag(this)">Labyrinth</span>
+        </div>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Description de ton expérience <span class="field-hint">— C1.1 pilotage</span></div>
+        <textarea id="b1-c11" rows="5" placeholder="Décris une situation concrète où tu as participé au suivi de production : outils utilisés (Shotgrid, Google Sheets, Notion...), coordination avec le DA, gestion des contraintes de planning..."></textarea>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Veille <span class="field-hint">— C1.2 : comment tu surveilles l'industrie</span></div>
+        <textarea id="b1-c12" rows="4" placeholder="Comment tu suis les tendances artistiques et technologiques ? Quelles sources utilises-tu ? Donne un exemple concret où ta veille a influencé une décision sur un projet..."></textarea>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Développement visuel <span class="field-hint">— C1.3 : moodboard, bible, proposition graphique</span></div>
+        <textarea id="b1-c13" rows="5" placeholder="As-tu réalisé des moodboards, une bible graphique, des planches de proposition visuelle ? Pour quel projet ? Comment cela a-t-il orienté la direction artistique ?"></textarea>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="media-section">
+        <div class="field-label">Images & preuves visuelles</div>
+        <div class="media-grid" id="media-b1"></div>
+        <div class="upload-zone" onclick="document.getElementById('fi-b1').click()">
+          <div class="upload-zone-icon">＋</div>
+          <div class="upload-zone-label">Ajouter des images</div>
+          <div class="upload-zone-sub">moodboards, captures Shotgrid, emails de validation, planches...</div>
+          <input type="file" id="fi-b1" multiple accept="image/*" onchange="addImages('b1', this)">
+        </div>
+      </div>
+
+      <div class="media-section">
+        <div class="field-label">Vidéos & liens</div>
+        <div class="video-grid" id="videos-b1"></div>
+        <div class="url-row">
+          <input class="url-input" type="url" id="url-b1" placeholder="Vimeo, YouTube, Google Drive...">
+          <button class="url-btn" onclick="addVideo('b1')">Ajouter</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BLOC 2 -->
+    <div class="section" id="s-b2">
+      <div class="page-header">
+        <div class="page-bloc-tag">Bloc 2 · Ton bloc fort</div>
+        <h1 class="page-title">Participer à la pré-production<br>d'une œuvre d'animation</h1>
+        <p class="page-desc">Note d'intention, scénario, storyboard, animatique, layout — c'est là où ton expérience est la plus dense.</p>
+        <div class="status-badge empty" id="badge-b2" onclick="toggleDone('b2')">À compléter</div>
+      </div>
+
+      <div class="comp-list">
+        <div class="comp-item"><div class="comp-num">C2.1</div><div class="comp-text-wrap"><div class="comp-title">Note d'intention, pitch, scénario, découpage technique</div><div class="comp-detail">Lieux, actions, personnages, dialogues, sons — structure de préproduction</div></div><div class="comp-check" id="chk-c21" onclick="toggleComp('c21', 'b2')"></div></div>
+        <div class="comp-item"><div class="comp-num">C2.2</div><div class="comp-text-wrap"><div class="comp-title">Éléments visuels techniques</div><div class="comp-detail">Model sheets, layouts, dessins techniques — manuel et/ou outils numériques</div></div><div class="comp-check" id="chk-c22" onclick="toggleComp('c22', 'b2')"></div></div>
+        <div class="comp-item"><div class="comp-num">C2.3</div><div class="comp-text-wrap"><div class="comp-title">Storyboard</div><div class="comp-detail">Découpage en séquences, dessin et annotation, cohérence narrative et visuelle</div></div><div class="comp-check" id="chk-c23" onclick="toggleComp('c23', 'b2')"></div></div>
+        <div class="comp-item"><div class="comp-num">C2.4</div><div class="comp-text-wrap"><div class="comp-title">Animatique</div><div class="comp-detail">Montage à partir du storyboard, mise en scène, sonorisation, temporalité, raccords</div></div><div class="comp-check" id="chk-c24" onclick="toggleComp('c24', 'b2')"></div></div>
+        <div class="comp-item"><div class="comp-num">C2.5</div><div class="comp-text-wrap"><div class="comp-title">Layout</div><div class="comp-detail">Composition des plans, décors, déplacements personnages, caméra, mouvements</div></div><div class="comp-check" id="chk-c25" onclick="toggleComp('c25', 'b2')"></div></div>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Projets de référence</div>
+        <div class="project-tags" id="tags-b2">
+          <span class="project-tag" onclick="toggleTag(this)">Apocalypse Mojito</span>
+          <span class="project-tag" onclick="toggleTag(this)">Pengarena / Riot Games</span>
+          <span class="project-tag" onclick="toggleTag(this)">Чуч-Мяуч</span>
+          <span class="project-tag" onclick="toggleTag(this)">Norman N'a Pas...</span>
+          <span class="project-tag" onclick="toggleTag(this)">Take My Muffin</span>
+          <span class="project-tag" onclick="toggleTag(this)">Labyrinth</span>
+        </div>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Storyboard <span class="field-hint">— C2.3 : décris ton approche, un projet concret</span></div>
+        <textarea id="b2-sb" rows="6" placeholder="Sur quel projet as-tu réalisé le storyboard ? Comment as-tu procédé ? Quels enjeux narratifs ou techniques as-tu résolus ?"></textarea>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Layout <span class="field-hint">— C2.5 : composition des plans, préparation de l'animation</span></div>
+        <textarea id="b2-layout" rows="6" placeholder="Sur Apocalypse Mojito notamment — décris ton travail de layout : comment tu définis la composition, les mouvements de caméra, les contraintes techniques..."></textarea>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Animatique <span class="field-hint">— C2.4</span></div>
+        <textarea id="b2-anim" rows="4" placeholder="As-tu réalisé des animatiques ? Sur quels projets ? Comment tu passes du storyboard à l'animatique ?"></textarea>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="media-section">
+        <div class="field-label">Storyboards, layouts, animatiques</div>
+        <div class="media-grid" id="media-b2"></div>
+        <div class="upload-zone" onclick="document.getElementById('fi-b2').click()">
+          <div class="upload-zone-icon">＋</div>
+          <div class="upload-zone-label">Ajouter des images</div>
+          <div class="upload-zone-sub">planches storyboard, layouts, model sheets...</div>
+          <input type="file" id="fi-b2" multiple accept="image/*" onchange="addImages('b2', this)">
+        </div>
+      </div>
+      <div class="media-section">
+        <div class="field-label">Vidéos (animatiques, showreels...)</div>
+        <div class="video-grid" id="videos-b2"></div>
+        <div class="url-row">
+          <input class="url-input" type="url" id="url-b2" placeholder="Vimeo, YouTube...">
+          <button class="url-btn" onclick="addVideo('b2')">Ajouter</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BLOC 3 -->
+    <div class="section" id="s-b3">
+      <div class="page-header">
+        <div class="page-bloc-tag">Bloc 3</div>
+        <h1 class="page-title">Produire les assets<br>d'un projet d'animation</h1>
+        <p class="page-desc">Fabrication des éléments fonctionnels — modélisation, textures, rigging, animation, éclairage.</p>
+        <div class="status-badge empty" id="badge-b3" onclick="toggleDone('b3')">À compléter</div>
+      </div>
+
+      <div class="comp-list">
+        <div class="comp-item"><div class="comp-num">C3.1</div><div class="comp-text-wrap"><div class="comp-title">Fabrication des éléments</div><div class="comp-detail">Puppets 2D, modélisation 3D, décors, personnages physiques ou digitaux</div></div><div class="comp-check" id="chk-c31" onclick="toggleComp('c31', 'b3')"></div></div>
+        <div class="comp-item"><div class="comp-num">C3.2</div><div class="comp-text-wrap"><div class="comp-title">Matières, couleurs, textures</div><div class="comp-detail">Caractéristiques de rendu : réflection, relief, opacité — en accord avec la DA</div></div><div class="comp-check" id="chk-c32" onclick="toggleComp('c32', 'b3')"></div></div>
+        <div class="comp-item"><div class="comp-num">C3.3</div><div class="comp-text-wrap"><div class="comp-title">Rigging</div><div class="comp-detail">Squelettes, axes de mobilité, points de contrôle, skinning</div></div><div class="comp-check" id="chk-c33" onclick="toggleComp('c33', 'b3')"></div></div>
+        <div class="comp-item"><div class="comp-num">C3.4</div><div class="comp-text-wrap"><div class="comp-title">Animation</div><div class="comp-detail">2D, 3D, stop motion, motion capture — personnages, objets, décors, VFX, lumière</div></div><div class="comp-check" id="chk-c34" onclick="toggleComp('c34', 'b3')"></div></div>
+        <div class="comp-item"><div class="comp-num">C3.5</div><div class="comp-text-wrap"><div class="comp-title">Éclairage</div><div class="comp-detail">Sources lumineuses, volumes, ombres, profondeur de champ</div></div><div class="comp-check" id="chk-c35" onclick="toggleComp('c35', 'b3')"></div></div>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Projets de référence</div>
+        <div class="project-tags" id="tags-b3">
+          <span class="project-tag" onclick="toggleTag(this)">Apocalypse Mojito</span>
+          <span class="project-tag" onclick="toggleTag(this)">Pengarena / Riot Games</span>
+          <span class="project-tag" onclick="toggleTag(this)">Чуч-Мяуч</span>
+          <span class="project-tag" onclick="toggleTag(this)">Norman N'a Pas...</span>
+          <span class="project-tag" onclick="toggleTag(this)">Take My Muffin</span>
+          <span class="project-tag" onclick="toggleTag(this)">Labyrinth</span>
+        </div>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Description de ton expérience sur la production</div>
+        <textarea id="b3-text" rows="8" placeholder="Quels éléments as-tu produits ? Modélisation, animation, rigging, textures, éclairage... Donne des exemples concrets avec les techniques et logiciels utilisés."></textarea>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="media-section">
+        <div class="field-label">Assets, animations, captures</div>
+        <div class="media-grid" id="media-b3"></div>
+        <div class="upload-zone" onclick="document.getElementById('fi-b3').click()">
+          <div class="upload-zone-icon">＋</div>
+          <div class="upload-zone-label">Ajouter des images</div>
+          <input type="file" id="fi-b3" multiple accept="image/*" onchange="addImages('b3', this)">
+        </div>
+      </div>
+      <div class="media-section">
+        <div class="field-label">Vidéos</div>
+        <div class="video-grid" id="videos-b3"></div>
+        <div class="url-row">
+          <input class="url-input" type="url" id="url-b3" placeholder="Vimeo, YouTube...">
+          <button class="url-btn" onclick="addVideo('b3')">Ajouter</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BLOC 4 -->
+    <div class="section" id="s-b4">
+      <div class="page-header">
+        <div class="page-bloc-tag">Bloc 4</div>
+        <h1 class="page-title">Réaliser la postproduction<br>d'un projet d'animation</h1>
+        <p class="page-desc">Rendu, effets spéciaux, compositing, étalonnage, montage final.</p>
+        <div class="status-badge empty" id="badge-b4" onclick="toggleDone('b4')">À compléter</div>
+      </div>
+
+      <div class="comp-list">
+        <div class="comp-item"><div class="comp-num">C4.1</div><div class="comp-text-wrap"><div class="comp-title">Optimisation du rendu</div><div class="comp-detail">Type d'export, compression, moteur de rendu, qualité de restitution</div></div><div class="comp-check" id="chk-c41" onclick="toggleComp('c41', 'b4')"></div></div>
+        <div class="comp-item"><div class="comp-num">C4.2</div><div class="comp-text-wrap"><div class="comp-title">Effets spéciaux</div><div class="comp-detail">Physiques et/ou virtuels — écriture graphique, animation VFX</div></div><div class="comp-check" id="chk-c42" onclick="toggleComp('c42', 'b4')"></div></div>
+        <div class="comp-item"><div class="comp-num">C4.3</div><div class="comp-text-wrap"><div class="comp-title">Suivi qualité post-prod</div><div class="comp-detail">Examen des rendus, respect du cahier des charges, concertation équipes</div></div><div class="comp-check" id="chk-c43" onclick="toggleComp('c43', 'b4')"></div></div>
+        <div class="comp-item"><div class="comp-num">C4.4</div><div class="comp-text-wrap"><div class="comp-title">Compositing</div><div class="comp-detail">Assemblage des plans, étalonnage, harmonisation couleurs</div></div><div class="comp-check" id="chk-c44" onclick="toggleComp('c44', 'b4')"></div></div>
+        <div class="comp-item"><div class="comp-num">C4.5</div><div class="comp-text-wrap"><div class="comp-title">Montage son et image</div><div class="comp-detail">Plans finalisés, version finale, respect des intentions du réalisateur</div></div><div class="comp-check" id="chk-c45" onclick="toggleComp('c45', 'b4')"></div></div>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Projets de référence</div>
+        <div class="project-tags" id="tags-b4">
+          <span class="project-tag" onclick="toggleTag(this)">Labyrinth</span>
+          <span class="project-tag" onclick="toggleTag(this)">Apocalypse Mojito</span>
+          <span class="project-tag" onclick="toggleTag(this)">Pengarena / Riot Games</span>
+          <span class="project-tag" onclick="toggleTag(this)">Take My Muffin</span>
+          <span class="project-tag" onclick="toggleTag(this)">Projets perso / indé</span>
+        </div>
+      </div>
+
+      <div class="field-block">
+        <div class="field-label">Description de ton expérience en post-production</div>
+        <textarea id="b4-text" rows="8" placeholder="Sur Labyrinth notamment — montage, compositing, étalonnage ? Quels logiciels ? As-tu travaillé sur des effets spéciaux sur d'autres projets ?"></textarea>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="media-section">
+        <div class="field-label">Captures, exports, screenshots post-prod</div>
+        <div class="media-grid" id="media-b4"></div>
+        <div class="upload-zone" onclick="document.getElementById('fi-b4').click()">
+          <div class="upload-zone-icon">＋</div>
+          <div class="upload-zone-label">Ajouter des images</div>
+          <input type="file" id="fi-b4" multiple accept="image/*" onchange="addImages('b4', this)">
+        </div>
+      </div>
+      <div class="media-section">
+        <div class="field-label">Vidéos (films finaux, showreels...)</div>
+        <div class="video-grid" id="videos-b4"></div>
+        <div class="url-row">
+          <input class="url-input" type="url" id="url-b4" placeholder="Vimeo, YouTube...">
+          <button class="url-btn" onclick="addVideo('b4')">Ajouter</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="save-indicator" id="save-ind">Sauvegardé</div>
+
+<script>
+  const STORAGE_KEY = 'vae_kaspirovich_v1';
+  const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  const done = data.done || {};
+  const comps = data.comps || {};
+
+  // INIT — restore text fields
+  const textFields = ['profil-intro','profil-formation','profil-projects','b1-c11','b1-c12','b1-c13','b2-sb','b2-layout','b2-anim','b3-text','b4-text'];
+  textFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && data[id]) el.value = data[id];
+    if (el) el.addEventListener('input', () => saveField(id, el.value));
+  });
+
+  // INIT — restore done status
+  ['b1','b2','b3','b4'].forEach(b => { if (done[b]) setDoneUI(b); });
+
+  // INIT — restore comps
+  Object.keys(comps).forEach(id => { if (comps[id]) setCompUI(id); });
+
+  updateProgress();
+
+  function saveField(key, val) {
+    data[key] = val;
+    persist();
+  }
+
+  function persist() {
+    data.done = done;
+    data.comps = comps;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    showSaved();
+  }
+
+  let saveTimer;
+  function showSaved() {
+    clearTimeout(saveTimer);
+    const el = document.getElementById('save-ind');
+    el.classList.add('visible');
+    saveTimer = setTimeout(() => el.classList.remove('visible'), 1800);
+  }
+
+  function show(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+    document.getElementById('s-' + id).classList.add('visible');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+  }
+
+  function toggleDone(bloc) {
+    done[bloc] = !done[bloc];
+    if (done[bloc]) setDoneUI(bloc);
+    else unsetDoneUI(bloc);
+    updateProgress();
+    persist();
+  }
+
+  function setDoneUI(bloc) {
+    const badge = document.getElementById('badge-' + bloc);
+    badge.className = 'status-badge done';
+    badge.textContent = 'Complété ✓';
+    const nav = document.getElementById('nav-' + bloc);
+    if (nav) nav.classList.add('done');
+  }
+
+  function unsetDoneUI(bloc) {
+    const badge = document.getElementById('badge-' + bloc);
+    badge.className = 'status-badge in-progress';
+    badge.textContent = 'En cours';
+  }
+
+  function updateProgress() {
+    const count = Object.values(done).filter(Boolean).length;
+    document.getElementById('prog').style.width = (count / 4 * 100) + '%';
+    document.getElementById('prog-count').textContent = count + ' / 4 blocs complétés';
+  }
+
+  function toggleComp(id, bloc) {
+    comps[id] = !comps[id];
+    if (comps[id]) setCompUI(id);
+    else document.getElementById('chk-' + id).classList.remove('checked');
+    checkBlocProgress(bloc);
+    persist();
+  }
+
+  function setCompUI(id) {
+    const el = document.getElementById('chk-' + id);
+    if (el) el.classList.add('checked');
+  }
+
+  function checkBlocProgress(bloc) {
+    const blocComps = { b1: ['c11','c12','c13'], b2: ['c21','c22','c23','c24','c25'], b3: ['c31','c32','c33','c34','c35'], b4: ['c41','c42','c43','c44','c45'] };
+    const list = blocComps[bloc];
+    const any = list.some(c => comps[c]);
+    if (any && !done[bloc]) {
+      const badge = document.getElementById('badge-' + bloc);
+      if (badge && badge.classList.contains('empty')) {
+        badge.className = 'status-badge in-progress';
+        badge.textContent = 'En cours';
+      }
+    }
+  }
+
+  function toggleTag(el) { el.classList.toggle('selected'); }
+
+  function addImages(bloc, input) {
+    const grid = document.getElementById('media-' + bloc);
+    Array.from(input.files).forEach(file => {
+      const url = URL.createObjectURL(file);
+      const img = document.createElement('img');
+      img.className = 'media-thumb';
+      img.src = url;
+      img.title = file.name;
+      grid.appendChild(img);
+    });
+  }
+
+  const videoUrls = {};
+  function addVideo(bloc) {
+    const input = document.getElementById('url-' + bloc);
+    const url = input.value.trim();
+    if (!url) return;
+    if (!videoUrls[bloc]) videoUrls[bloc] = [];
+    videoUrls[bloc].push(url);
+    renderVideo(bloc, url);
+    input.value = '';
+  }
+
+  function renderVideo(bloc, url) {
+    const grid = document.getElementById('videos-' + bloc);
+    let embedUrl = url;
+    const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+    const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+    if (vimeoMatch) embedUrl = 'https://player.vimeo.com/video/' + vimeoMatch[1];
+    else if (ytMatch) embedUrl = 'https://www.youtube.com/embed/' + ytMatch[1];
+    const wrap = document.createElement('div');
+    wrap.className = 'video-embed-wrap';
+    const iframe = document.createElement('iframe');
+    iframe.src = embedUrl;
+    iframe.allowFullscreen = true;
+    wrap.appendChild(iframe);
+    grid.appendChild(wrap);
+  }
+</script>
+</body>
+</html>
